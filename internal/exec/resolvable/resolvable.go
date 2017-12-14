@@ -15,6 +15,7 @@ type Schema struct {
 	schema.Schema
 	Query    Resolvable
 	Mutation Resolvable
+	Subscription Resolvable
 	Resolver reflect.Value
 }
 
@@ -57,7 +58,7 @@ func (*Scalar) isResolvable() {}
 func ApplyResolver(s *schema.Schema, resolver interface{}) (*Schema, error) {
 	b := newBuilder(s)
 
-	var query, mutation Resolvable
+	var query, mutation, subscription Resolvable
 
 	if t, ok := s.EntryPoints["query"]; ok {
 		if err := b.assignExec(&query, t, reflect.TypeOf(resolver)); err != nil {
@@ -71,6 +72,12 @@ func ApplyResolver(s *schema.Schema, resolver interface{}) (*Schema, error) {
 		}
 	}
 
+  	
+	if t, ok := s.EntryPoints["subscription"]; ok {
+		if err := b.assignExec(&subscription, t, reflect.TypeOf(resolver)); err != nil {
+			return nil, err
+		}
+	}
 	if err := b.finish(); err != nil {
 		return nil, err
 	}
@@ -80,6 +87,7 @@ func ApplyResolver(s *schema.Schema, resolver interface{}) (*Schema, error) {
 		Resolver: reflect.ValueOf(resolver),
 		Query:    query,
 		Mutation: mutation,
+		Subscription: subscription,
 	}, nil
 }
 
@@ -304,7 +312,14 @@ func (b *execBuilder) makeFieldExec(typeName string, f *schema.Field, m reflect.
 		HasError:    hasError,
 		TraceLabel:  fmt.Sprintf("GraphQL field: %s.%s", typeName, f.Name),
 	}
-	if err := b.assignExec(&fe.ValueExec, f.Type, m.Type.Out(0)); err != nil {
+	out := m.Type.Out(0)
+
+	// TODO: check if if comes from subscription
+	if out.Kind() == reflect.Chan {
+		out = out.Elem()
+	}
+
+	if err := b.assignExec(&fe.ValueExec, f.Type, out); err != nil {
 		return nil, err
 	}
 	return fe, nil
