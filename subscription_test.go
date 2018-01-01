@@ -93,10 +93,8 @@ func TestSubs(t *testing.T) {
 	}`
 	variables := map[string]interface{}{"room":"default"}
 	opName := "addedMessage"
-	ch, err := schemaCompiled.Subscribe(ctx,queryString,opName,variables)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ch := schemaCompiled.Subscribe(ctx,queryString,opName,variables)
+
 	type event struct {
 		Id   string `json:"id"`
 		Room string `json:"room"`
@@ -107,14 +105,22 @@ func TestSubs(t *testing.T) {
 		event{"2","default"},
 		event{"3","default"},
 	}
+
   actual := []event{} 
 	for {
 		data, ok := <- ch
 		if !ok {
 			break
 		}
+		if data.Errors != nil &&  len(data.Errors) > 0 {
+			t.Errorf("errors comes from Subscription: %v",data.Errors)
+		}
+		if data.Data == nil {
+			t.Errorf("no data found from Subs: %v", data)
+			continue
+		}
 		var e event
-		err := json.Unmarshal(data, &e)
+		err := json.Unmarshal(data.Data, &e)
 		if err != nil {
 			t.Error(err)
 		}
