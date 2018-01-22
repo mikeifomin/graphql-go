@@ -93,7 +93,10 @@ func TestSubs(t *testing.T) {
 	}`
 	variables := map[string]interface{}{"room":"default"}
 	opName := "addedMessage"
-	ch := schemaCompiled.Subscribe(ctx,queryString,opName,variables)
+	ch, err := schemaCompiled.Subscribe(ctx,queryString,opName,variables)
+	if err != nil {
+		t.Errorf("schema Subscription instant error: %v", err)
+	}
 
 	type event struct {
 		Id   string `json:"id"`
