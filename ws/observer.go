@@ -20,6 +20,8 @@ func (p *ProtoObserver) Next(id string, data json.RawMessage) {
 	}
 }
 
+// Error function run if graphql validation error
+// see https://github.com/apollographql/subscriptions-transport-ws/blob/v0.9.5/PROTOCOL.md#gql_error
 func (p *ProtoObserver) Error(id string, err error) {
 	errW := p.conn.WriteJSON(Message{
 		Type:    GQL_ERROR,

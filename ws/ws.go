@@ -65,7 +65,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, request *http.Request) {
 		}
 	}    
 
-	subscribeFn := func(ctx context.Context, data json.RawMessage) (<-chan json.RawMessage, error) {
+	subscribeFn := func(ctx context.Context, data json.RawMessage) (<-chan *graphql.Response, error) {
 		var params struct {
 			Query         string                 `json:"query"`
 			OperationName string                 `json:"operationName"`

@@ -16,7 +16,7 @@ import (
 	"github.com/neelance/graphql-go/introspection"
 )
 
-func (s *Schema) Subscribe(ctx context.Context, queryString string, operationName string, variables map[string]interface{}) (<-chan *Response) {
+func (s *Schema) Subscribe(ctx context.Context, queryString string, operationName string, variables map[string]interface{}) (<-chan *Response, error) {
 		return s.subscribe(ctx,queryString,operationName,variables,s.res)
 }
 
@@ -30,20 +30,21 @@ func closeOneErr(err *errors.QueryError) <-chan *Response {
 	return closeErrs([]*errors.QueryError{err})
 }
 
-func (s *Schema) subscribe(ctx context.Context, queryString string, operationName string, variables map[string]interface{}, res *resolvable.Schema) <-chan *Response {
-	doc, qErr := query.Parse(queryString)
-	if qErr != nil {
-		return closeOneErr(qErr)
+func (s *Schema) subscribe(ctx context.Context, queryString string, operationName string, variables map[string]interface{}, res *resolvable.Schema) (<-chan *Response, error) {
+	doc, pErr := query.Parse(queryString)
+	if pErr != nil {
+		return nil, pErr
 	}
 
 	errs := validation.Validate(s.schema, doc)
 	if len(errs) != 0 {
-		return closeErrs(errs)
+		// TODO: return one error not chan
+		return closeErrs(errs), nil
 	}
 
 	op, err := getOperation(doc, operationName)
 	if err != nil {
-		return closeOneErr(errors.Errorf("%s",err))
+		return nil, err
 	}
 
 	r := &exec.Request{
@@ -62,7 +63,7 @@ func (s *Schema) subscribe(ctx context.Context, queryString string, operationNam
 	for _, v := range op.Vars {
 		t, err := common.ResolveType(v.Type, s.schema.Resolve)
 		if err != nil {
-			return closeOneErr(err)
+			return nil, err
 		}
 		varTypes[v.Name.Name] = introspection.WrapType(t)
 	}
@@ -76,7 +77,7 @@ func (s *Schema) subscribe(ctx context.Context, queryString string, operationNam
 			Errors: errs,
 		}
 		close(out)
-		return out
+		return out, nil
 	}
 
 	chData, chErr := r.Subscribe(traceCtx, res, op)
@@ -105,6 +106,6 @@ func (s *Schema) subscribe(ctx context.Context, queryString string, operationNam
 		close(out)
 		finish([]*errors.QueryError{})
 	}()
-	return out
+	return out, nil
 }
 

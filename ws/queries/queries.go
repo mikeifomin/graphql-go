@@ -4,10 +4,13 @@ import (
  "encoding/json"
  "reflect"
  "context"
+	graphql "github.com/neelance/graphql-go"
 )
 
-type subscribeFn = func(context.Context, json.RawMessage) (<-chan json.RawMessage, error)
+type subscribeFn = func(context.Context, json.RawMessage) (<-chan *graphql.Response, error)
 
+// one query for one connection
+// conn.WriteJSON not gorutine safe
 type Queries struct {
   o observable
 	subscribe  subscribeFn
@@ -45,15 +48,16 @@ func NewQueries(ctx context.Context,  o observable, subscribe subscribeFn) *Quer
 }
 
 func (q *Queries) Create(id string, payload json.RawMessage) {
-  dataChan, err := q.subscribe(q.ctx,payload)
+  ch, err := q.subscribe(q.ctx,payload)
+	// XXX: nice place to handle a graphql validation error
 	if err != nil {
 		q.o.Error(id,err)
 		q.o.Complete(id)
-    return
+		return
 	}
 	sel := reflect.SelectCase{
 		Dir:  reflect.SelectRecv,
-		Chan: reflect.ValueOf(dataChan),
+		Chan: reflect.ValueOf(ch),
 	}   
 	q.list = append(q.list, sel)
 	q.idList = append(q.idList, id)
@@ -85,7 +89,12 @@ func (q *Queries) RunSelectLoop() {
 			q.remove(index)
 			continue
 		}
-    data := v.Interface().(json.RawMessage)
+    resp := v.Interface().(*graphql.Response)
+		data, err := json.Marshal(resp)
+		if err != nil {
+			// TODO: how can this even be?
+			panic(err)
+		}
 		q.o.Next(id,data)
 	}
 }
